@@ -1,0 +1,136 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Threading;
+
+namespace TascaTestMonitor
+{
+    class Program
+    {
+        static List<int> listaPrimos = new List<int>();
+        static object syncObject = new object();
+
+        static void Main(string[] args)
+        {
+            // Mutex
+            Console.WriteLine("**Mutex**");
+            CalcularPrimosMutex(0, 100000);
+
+            // Monitor
+            Console.WriteLine("\n**Monitor**");
+            CalcularPrimosMonitor(0, 100000);
+
+            // SyncRoot
+            Console.WriteLine("\n**SyncRoot**");
+            CalcularPrimosSyncRoot(0, 100000);
+
+            Console.ReadKey();
+        }
+
+        static void CalcularPrimosMutex(int inicio, int fin)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            listaPrimos.Clear();
+            Mutex mutex = new Mutex();
+
+            ThreadStart ts = delegate ()
+            {
+                for (int i = inicio; i <= fin; i++)
+                {
+                    if (EsPrimo(i))
+                    {
+                        mutex.WaitOne();
+                        listaPrimos.Add(i);
+                        mutex.ReleaseMutex();
+                    }
+                }
+            };
+
+            Thread t = new Thread(ts);
+            t.Start();
+            t.Join();
+
+            stopwatch.Stop();
+            Console.WriteLine("Tiempo: {0} ms", stopwatch.ElapsedMilliseconds);
+            Console.WriteLine("Número de primos: {0}", listaPrimos.Count);
+        }
+
+        static void CalcularPrimosMonitor(int inicio, int fin)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            listaPrimos.Clear();
+
+            ThreadStart ts = delegate ()
+            {
+                for (int i = inicio; i <= fin; i++)
+                {
+                    lock (syncObject)
+                    {
+                        if (EsPrimo(i))
+                        {
+                            listaPrimos.Add(i);
+                        }
+                    }
+                }
+            };
+
+            Thread t = new Thread(ts);
+            t.Start();
+            t.Join();
+
+            stopwatch.Stop();
+            Console.WriteLine("Tiempo: {0} ms", stopwatch.ElapsedMilliseconds);
+            Console.WriteLine("Número de primos: {0}", listaPrimos.Count);
+        }
+
+        static void CalcularPrimosSyncRoot(int inicio, int fin)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            listaPrimos.Clear();
+            Queue<int> colaPrimos = new Queue<int>();
+            object colaSyncObject = new object(); // Objeto para sincronización
+
+            ThreadStart ts = delegate ()
+            {
+                for (int i = inicio; i <= fin; i++)
+                {
+                    if (EsPrimo(i))
+                    {
+                        lock (colaSyncObject)
+                        {
+                            colaPrimos.Enqueue(i);
+                        }
+                    }
+                }
+            };
+
+            Thread t = new Thread(ts);
+            t.Start();
+            t.Join();
+
+            while (colaPrimos.Count > 0)
+            {
+                listaPrimos.Add(colaPrimos.Dequeue());
+            }
+
+            stopwatch.Stop();
+            Console.WriteLine("Tiempo: {0} ms", stopwatch.ElapsedMilliseconds);
+            Console.WriteLine("Número de primos: {0}", listaPrimos.Count);
+        }
+
+        static bool EsPrimo(int numero)
+        {
+            if (numero <= 1) return false;
+            if (numero <= 3) return true;
+            if (numero % 2 == 0 || numero % 3 == 0) return false;
+            int i = 5;
+            while (i * i <= numero)
+            {
+                if (numero % i == 0 || numero % (i + 2) == 0) return false;
+                i += 6;
+            }
+            return true;
+        }
+    }
+
+}
